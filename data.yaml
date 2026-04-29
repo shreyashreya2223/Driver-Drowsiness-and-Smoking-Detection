@@ -1,0 +1,5 @@
+train: dataset/data/train/images
+val: dataset/data/val/images   # change to val if folder name is val
+
+nc: 2
+names: ["smoke", "fire"]
