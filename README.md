@@ -240,9 +240,6 @@ It is practical, scalable, and suitable for smart vehicle safety applications.
 
 ---
 
-## Developed By
-
-Shreya
 
 B.Tech Computer Science Engineering
 
