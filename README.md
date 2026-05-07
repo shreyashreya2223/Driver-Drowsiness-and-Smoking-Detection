@@ -238,21 +238,3 @@ This project demonstrates how Artificial Intelligence and Computer Vision can be
 
 It is practical, scalable, and suitable for smart vehicle safety applications.
 
----
-
-
-B.Tech Computer Science Engineering
-
-IILM University
-
----
-
-## Guided By
-
-Faculty Mentor: Saurabhi Purwar
-
----
-
-## Project Type
-
-Major Project / Final Year Project / Research Project
