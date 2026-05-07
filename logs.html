@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Driver Monitor - Logs & Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #0f172a;
+            color: white;
+            transition: 0.4s;
+        }
+
+        body.light {
+            background: #f1f5f9;
+            color: #111;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 300px;
+            background: #111827;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        body.light .sidebar {
+            background: white;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #38bdf8;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 12px 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+
+        body.light .nav-links a {
+            background: #e2e8f0;
+            color: #111;
+        }
+
+        .nav-links a:hover {
+            background: #38bdf8;
+            color: white;
+        }
+
+        .nav-links a.active {
+            background: #38bdf8;
+            color: white;
+            font-weight: bold;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 20px;
+        }
+
+        body.light .card {
+            background: #e2e8f0;
+        }
+
+        /* MAIN CONTENT */
+        .main {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #38bdf8;
+            margin-bottom: 30px;
+        }
+
+        /* SECTIONS */
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38bdf8;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 10px;
+        }
+
+        /* LOGS TABLE */
+        .logs-table {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid #38bdf8;
+        }
+
+        body.light .logs-table {
+            background: white;
+            border-color: #cbd5e1;
+        }
+
+        .logs-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .logs-table th {
+            background: #1e293b;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+            color: #38bdf8;
+        }
+
+        body.light .logs-table th {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .logs-table td {
+            padding: 12px 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        body.light .logs-table td {
+            border-top-color: #cbd5e1;
+        }
+
+        .logs-table tr:hover {
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        .alert-type {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        .alert-drowsy {
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+        }
+
+        .alert-smoking {
+            background: rgba(234, 179, 8, 0.2);
+            color: #fbbf24;
+        }
+
+        /* CHARTS */
+        .analysis-row {
+            display: block;
+            margin-bottom: 40px;
+        }
+
+        .right-panel {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel .logs-table {
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        body.light .chart-box {
+            background: white;
+            border-color: #cbd5e1;
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #38bdf8;
+        }
+
+        /* STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #38bdf8;
+            text-align: center;
+        }
+
+        body.light .stat-card {
+            background: white;
+            border-color: #cbd5e1;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #22c55e;
+        }
+
+        /* BUTTONS */
+        button {
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin: 10px 10px 10px 0;
+        }
+
+        .btn-primary {
+            background: #38bdf8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #22c55e;
+        }
+
+        .btn-secondary {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #dc2626;
+        }
+
+        /* MODALS */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 80%;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+
+        body.light .modal-content {
+            background: white;
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38bdf8;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-modal {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .mode-btn {
+            background: #38bdf8;
+            color: white;
+            padding: 10px 15px;
+        }
+
+        .mode-btn:hover {
+            background: #22c55e;
+        }
+
+        .footer {
+            text-align: center;
+            opacity: 0.7;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="title">AI DRIVER MONITOR</div>
+
+            <div class="nav-links">
+                <a href="/">📊 Dashboard</a>
+                <a href="/logs" class="active">📋 Logs & Analytics</a>
+            </div>
+
+            <div class="card">
+                <h2 style="color: #38bdf8; margin-bottom: 10px;">Quick Stats</h2>
+                <p style="margin: 10px 0;">Total Alerts: <strong id="totalAlerts">0</strong></p>
+                <p style="margin: 10px 0;">Drowsiness: <strong id="drowsyTotal" style="color: #ef4444;">0</strong></p>
+                <p style="margin: 10px 0;">Smoking: <strong id="smokingTotal" style="color: #3b82f6;">0</strong></p>
+            </div>
+
+            <button class="mode-btn" onclick="toggleMode()">🌙 DARK/LIGHT</button>
+
+            <div class="footer">
+                <a href="/logout" style="color: #ef4444; text-decoration: none;">Logout</a>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main">
+            <div class="page-title">📋 Logs & Analytics</div>
+
+            <!-- STATS GRID -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Alerts</div>
+                    <div class="stat-value" id="statsTotal">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Drowsiness Alerts</div>
+                    <div class="stat-value" id="statsDrowsy">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Smoking Alerts</div>
+                    <div class="stat-value" id="statsSmoke">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Alert Rate</div>
+                    <div class="stat-value" id="statsRate">0%</div>
+                </div>
+            </div>
+
+            <!-- RECENT LOGS -->
+            <div class="analysis-row">
+                <div class="right-panel">
+                    <div class="section" style="margin-bottom:0;">
+                        <div class="section-title">🔔 Recent 5 Logs</div>
+                        <div class="logs-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Alert Type</th>
+                                        <th>Timestamp</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentLogsBody">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #94a3b8;">Loading logs...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button class="btn-primary" onclick="showAllLogsModal()">📂 View All Logs</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="footer">
+                Developed as Major Project • IILM University
+            </div>
+        </div>
+    </div>
+
+    <!-- ALL LOGS MODAL -->
+    <div id="allLogsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>📂 All Logs</span>
+                <button class="close-modal" onclick="closeAllLogsModal()">✕ Close</button>
+            </div>
+            <div class="logs-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Alert Type</th>
+                            <th>Timestamp</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allLogsBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #94a3b8;">Loading logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        /* DARK MODE */
+        function toggleMode() {
+            document.body.classList.toggle("light");
+        }
+
+        /* FETCH AND DISPLAY LOGS */
+        function loadLogs() {
+            fetch('/api/logs/recent')
+                .then(response => response.json())
+                .then(data => {
+                    displayRecentLogs(data.logs);
+                    updateStats(data.stats);
+                })
+                .catch(error => console.log('Error loading logs:', error));
+        }
+
+        /* DISPLAY RECENT LOGS */
+        function displayRecentLogs(logs) {
+            const tbody = document.getElementById('recentLogsBody');
+            tbody.innerHTML = '';
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #94a3b8;">No logs available</td></tr>';
+                return;
+            }
+
+            logs.forEach((log, index) => {
+                const row = `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><span class="alert-type alert-${log.type.toLowerCase()}">${log.type}</span></td>
+                        <td>${log.timestamp}</td>
+                        <td>✅ Logged</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        /* SHOW ALL LOGS */
+        function showAllLogsModal() {
+            const modal = document.getElementById('allLogsModal');
+            modal.classList.add('show');
+
+            fetch('/api/logs/all')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('allLogsBody');
+                    tbody.innerHTML = '';
+
+                    if (data.logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #94a3b8;">No logs available</td></tr>';
+                        return;
+                    }
+
+                    data.logs.forEach((log, index) => {
+                        const row = `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td><span class="alert-type alert-${log.type.toLowerCase()}">${log.type}</span></td>
+                                <td>${log.timestamp}</td>
+                                <td>✅ Logged</td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                })
+                .catch(error => console.log('Error loading all logs:', error));
+        }
+
+        /* CLOSE ALL LOGS */
+        function closeAllLogsModal() {
+            const modal = document.getElementById('allLogsModal');
+            modal.classList.remove('show');
+        }
+
+        /* UPDATE STATS */
+        function updateStats(stats) {
+            document.getElementById('statsTotal').innerText = stats.total;
+            document.getElementById('statsDrowsy').innerText = stats.drowsy;
+            document.getElementById('statsSmoke').innerText = stats.smoking;
+            document.getElementById('statsRate').innerText = stats.rate + '%';
+
+            document.getElementById('totalAlerts').innerText = stats.total;
+            document.getElementById('drowsyTotal').innerText = stats.drowsy;
+            document.getElementById('smokingTotal').innerText = stats.smoking;
+        }
+
+
+        /* LOAD ON PAGE START */
+        window.addEventListener('load', () => {
+            loadLogs();
+            // Refresh every 5 seconds
+            setInterval(loadLogs, 5000);
+        });
+
+        /* CLOSE MODAL ON CLICK OUTSIDE */
+        window.onclick = function(event) {
+            const modal = document.getElementById('allLogsModal');
+            if (event.target === modal) {
+                modal.classList.remove('show');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -87,267 +87,372 @@ def calculate_EAR(eye):
         np.array(eye[0]) - np.array(eye[3])
     )
 
-    ear = (A + B) / (2.0 * C)
-
-    return ear
+    return (A + B) / (2.0 * C)
 
 # =====================================
-# DROWSINESS VARIABLES
+# VARIABLES
 # =====================================
 
 EAR_THRESHOLD = 0.25
 FRAME_LIMIT = 15
 
 closed_frames = 0
-
-# =====================================
-# FPS VARIABLES
-# =====================================
-
 prev_time = 0
 
+last_drowsy_log = 0
+last_smoke_log = 0
+
+# GLOBAL STATS FOR API
+current_fps = 0
+current_ear = 0.0
+drowsy_count = 0
+smoking_count = 0
+drowsy_alert_triggered = False
+smoking_alert_triggered = False
+
 # =====================================
-# CAMERA START
+# CAMERA
 # =====================================
 
 cap = cv2.VideoCapture(0)
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+# Smaller professional resolution
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
-print("System Running... Press Q to Quit")
+# =====================================
+# FRAME GENERATOR FOR FLASK
+# =====================================
 
-while True:
+def generate_frames():
 
-    ret, frame = cap.read()
+    global closed_frames
+    global alarm_playing
+    global prev_time
+    global last_drowsy_log
+    global last_smoke_log
+    global current_fps
+    global current_ear
+    global drowsy_count
+    global smoking_count
+    global drowsy_alert_triggered
+    global smoking_alert_triggered
 
-    if not ret:
-        break
+    while True:
 
-    frame = cv2.flip(frame, 1)
+        success, frame = cap.read()
 
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if not success:
+            break
 
-    # =====================================
-    # PROJECT TITLE
-    # =====================================
+        frame = cv2.flip(frame, 1)
 
-    cv2.putText(
-        frame,
-        "AI DRIVER MONITORING SYSTEM",
-        (20, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (0, 255, 255),
-        2
-    )
+        rgb = cv2.cvtColor(
+            frame,
+            cv2.COLOR_BGR2RGB
+        )
 
-    # =====================================
-    # DROWSINESS DETECTION
-    # =====================================
-
-    drowsy_detected = False
-
-    results = face_mesh.process(rgb)
-
-    if results.multi_face_landmarks:
-
-        for face_landmarks in results.multi_face_landmarks:
-
-            h, w, _ = frame.shape
-
-            left_eye = []
-            right_eye = []
-
-            # LEFT EYE
-            for idx in LEFT_EYE:
-
-                x = int(
-                    face_landmarks.landmark[idx].x * w
-                )
-
-                y = int(
-                    face_landmarks.landmark[idx].y * h
-                )
-
-                left_eye.append((x, y))
-
-            # RIGHT EYE
-            for idx in RIGHT_EYE:
-
-                x = int(
-                    face_landmarks.landmark[idx].x * w
-                )
-
-                y = int(
-                    face_landmarks.landmark[idx].y * h
-                )
-
-                right_eye.append((x, y))
-
-            # EAR CALCULATION
-
-            left_EAR = calculate_EAR(left_eye)
-
-            right_EAR = calculate_EAR(right_eye)
-
-            ear = (left_EAR + right_EAR) / 2
-
-            # DROWSINESS LOGIC
-
-            if ear < EAR_THRESHOLD:
-                closed_frames += 1
-            else:
-                closed_frames = 0
-
-            if closed_frames > FRAME_LIMIT:
-
-                drowsy_detected = True
-
-                save_log("Drowsiness Detected")
-
-                cv2.putText(
-                    frame,
-                    "DROWSY!",
-                    (50, 70),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 0, 255),
-                    3
-                )
-
-            # SHOW EAR
-
-            cv2.putText(
-                frame,
-                f"EAR: {ear:.2f}",
-                (50, 120),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2
-            )
-
-    # =====================================
-    # SMOKING DETECTION (YOLOv26n)
-    # =====================================
-
-    smoking_detected = False
-
-    smoke_results = smoking_model(
-        frame,
-        conf=0.40
-    )
-
-    for result in smoke_results:
-
-        for box in result.boxes:
-
-            cls = int(box.cls[0])
-
-            class_name = result.names[cls]
-
-            if class_name == "smoking":
-
-                smoking_detected = True
-
-                save_log("Smoking Detected")
-
-                x1, y1, x2, y2 = map(
-                    int,
-                    box.xyxy[0]
-                )
-
-                conf = float(box.conf[0])
-
-                # BLUE BOX
-
-                cv2.rectangle(
-                    frame,
-                    (x1, y1),
-                    (x2, y2),
-                    (255, 0, 0),
-                    2
-                )
-
-                cv2.putText(
-                    frame,
-                    f"SMOKING {conf:.2f}",
-                    (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255, 0, 0),
-                    2
-                )
-
-    # =====================================
-    # ACTIVE STATUS
-    # =====================================
-
-    if not drowsy_detected and not smoking_detected:
+        # =====================================
+        # TITLE
+        # =====================================
 
         cv2.putText(
             frame,
-            "ACTIVE",
-            (50, 170),
+            "AI DRIVER MONITORING SYSTEM",
+            (20, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
+            0.7,
+            (0, 255, 255),
             2
         )
 
-    # =====================================
-    # FPS DISPLAY
-    # =====================================
+        # =====================================
+        # DROWSINESS DETECTION
+        # =====================================
 
-    current_time = time.time()
+        drowsy_detected = False
 
-    fps = 1 / (current_time - prev_time)
+        results = face_mesh.process(rgb)
 
-    prev_time = current_time
+        if results.multi_face_landmarks:
 
-    cv2.putText(
-        frame,
-        f"FPS: {int(fps)}",
-        (50, 220),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (255, 255, 0),
-        2
-    )
+            for face_landmarks in results.multi_face_landmarks:
 
-    # =====================================
-    # ALARM LOGIC
-    # =====================================
+                h, w, _ = frame.shape
 
-    if drowsy_detected or smoking_detected:
+                left_eye = []
+                right_eye = []
 
-        if not alarm_playing:
+                # LEFT EYE
+                for idx in LEFT_EYE:
 
-            pygame.mixer.music.play(-1)
+                    x = int(
+                        face_landmarks.landmark[idx].x * w
+                    )
 
-            alarm_playing = True
+                    y = int(
+                        face_landmarks.landmark[idx].y * h
+                    )
 
-    else:
+                    left_eye.append((x, y))
 
-        if alarm_playing:
+                # RIGHT EYE
+                for idx in RIGHT_EYE:
 
-            pygame.mixer.music.stop()
+                    x = int(
+                        face_landmarks.landmark[idx].x * w
+                    )
 
-            alarm_playing = False
+                    y = int(
+                        face_landmarks.landmark[idx].y * h
+                    )
 
-    # =====================================
-    # SHOW WINDOW
-    # =====================================
+                    right_eye.append((x, y))
 
-    cv2.imshow(
-        "Driver Monitoring System",
-        frame
-    )
+                # =====================================
+                # EAR CALCULATION
+                # =====================================
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+                left_EAR = calculate_EAR(left_eye)
 
-cap.release()
+                right_EAR = calculate_EAR(right_eye)
 
-cv2.destroyAllWindows()
+                ear = (left_EAR + right_EAR) / 2
+                
+                current_ear = ear
+
+                # =====================================
+                # DROWSINESS LOGIC
+                # =====================================
+
+                if ear < EAR_THRESHOLD:
+                    closed_frames += 1
+                else:
+                    closed_frames = 0
+
+                if closed_frames > FRAME_LIMIT:
+
+                    drowsy_detected = True
+
+                    current_time = time.time()
+
+                    # Log only once every 10 seconds
+                    if current_time - last_drowsy_log > 10:
+
+                        save_log(
+                            "Drowsiness Detected"
+                        )
+                        
+                        drowsy_count += 1
+                        drowsy_alert_triggered = True
+
+                        last_drowsy_log = current_time
+
+                    cv2.putText(
+                        frame,
+                        "DROWSY!",
+                        (50, 70),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        3
+                    )
+
+                # =====================================
+                # EAR DISPLAY
+                # =====================================
+
+                cv2.putText(
+                    frame,
+                    f"EAR: {ear:.2f}",
+                    (50, 120),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (255, 255, 255),
+                    2
+                )
+
+        # =====================================
+        # SMOKING DETECTION
+        # =====================================
+
+        smoking_detected = False
+
+        smoke_results = smoking_model(
+            frame,
+            conf=0.65
+        )
+
+        for result in smoke_results:
+
+            for box in result.boxes:
+
+                cls = int(box.cls[0])
+
+                class_name = result.names[cls]
+
+                if class_name == "smoking":
+
+                    smoking_detected = True
+
+                    current_time = time.time()
+
+                    # Log only once every 10 seconds
+                    if current_time - last_smoke_log > 10:
+
+                        save_log(
+                            "Smoking Detected"
+                        )
+                        
+                        smoking_count += 1
+                        smoking_alert_triggered = True
+
+                        last_smoke_log = current_time
+
+                    x1, y1, x2, y2 = map(
+                        int,
+                        box.xyxy[0]
+                    )
+
+                    conf = float(box.conf[0])
+
+                    # =====================================
+                    # BLUE BOX
+                    # =====================================
+
+                    cv2.rectangle(
+                        frame,
+                        (x1, y1),
+                        (x2, y2),
+                        (255, 0, 0),
+                        2
+                    )
+
+                    cv2.putText(
+                        frame,
+                        f"SMOKING {conf:.2f}",
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (255, 0, 0),
+                        2
+                    )
+
+        # =====================================
+        # ACTIVE STATUS
+        # =====================================
+
+        if not drowsy_detected and not smoking_detected:
+
+            cv2.putText(
+                frame,
+                "ACTIVE",
+                (50, 170),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2
+            )
+
+        # =====================================
+        # FPS DISPLAY
+        # =====================================
+
+        current_time = time.time()
+
+        fps = 1 / (current_time - prev_time)
+        
+        current_fps = int(fps)
+
+        prev_time = current_time
+
+        cv2.putText(
+            frame,
+            f"FPS: {int(fps)}",
+            (50, 220),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 255, 0),
+            2
+        )
+
+        # =====================================
+        # ALARM LOGIC
+        # =====================================
+
+        if drowsy_detected or smoking_detected:
+
+            if not alarm_playing:
+
+                pygame.mixer.music.play(-1)
+
+                alarm_playing = True
+
+        else:
+
+            if alarm_playing:
+
+                pygame.mixer.music.stop()
+
+                alarm_playing = False
+
+        # =====================================
+        # ENCODE FRAME
+        # =====================================
+
+        ret, buffer = cv2.imencode(
+            '.jpg',
+            frame
+        )
+
+        frame = buffer.tobytes()
+
+        yield (
+            b'--frame\r\n'
+            b'Content-Type: image/jpeg\r\n\r\n' +
+            frame +
+            b'\r\n'
+        )
+
+# =====================================
+# GET STATS FOR API
+# =====================================
+
+def get_stats():
+    return {
+        'fps': current_fps,
+        'ear': round(current_ear, 2),
+        'drowsy_count': drowsy_count,
+        'smoking_count': smoking_count
+    }
+
+# =====================================
+# LOCAL TEST MODE
+# =====================================
+
+if __name__ == "__main__":
+
+    print("Press Q to Quit")
+
+    for frame_bytes in generate_frames():
+
+        frame_array = np.frombuffer(
+            frame_bytes.split(b'\r\n\r\n')[1].split(b'\r\n')[0],
+            dtype=np.uint8
+        )
+
+        frame = cv2.imdecode(
+            frame_array,
+            cv2.IMREAD_COLOR
+        )
+
+        cv2.imshow(
+            "Driver Monitoring System",
+            frame
+        )
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
